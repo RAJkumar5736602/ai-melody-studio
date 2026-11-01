@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Melody Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Wavesurfer.js -->
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased overflow-hidden" x-data="melodyApp()" x-init="init()">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur z-20 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">AI Melody Studio</h1>
+                <p class="text-xs text-slate-400">AI song generator</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-6">
+            <!-- Quota Display -->
+            <div class="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/50 text-xs">
+                <span class="text-slate-400">Quota:</span>
+                <span class="font-semibold text-indigo-400" x-text="quota.remaining + ' / ' + quota.limit"></span>
+            </div>
+
+            <button @click="loadSongs()" class="p-2 text-slate-400 hover:text-white transition rounded-lg hover:bg-slate-800" title="Refresh Songs">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Layout -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- Left Sidebar: Song Generator -->
+        <aside class="w-96 border-r border-slate-800 bg-slate-900/30 flex flex-col overflow-y-auto p-6 space-y-6">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Create New Track</h2>
+
+            <form @submit.prevent="generateSong" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Prompt / Description</label>
+                    <textarea x-model="form.prompt" rows="3" required placeholder="An upbeat indie rock track about summer nights..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Genre</label>
+                        <select x-model="form.genre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition">
+                            <option value="Pop">Pop</option>
+                            <option value="Rock">Rock</option>
+                            <option value="Hip-Hop">Hip-Hop</option>
+                            <option value="Electronic">Electronic</option>
+                            <option value="Ambient">Ambient</option>
+                            <option value="Jazz">Jazz</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Mood</label>
+                        <select x-model="form.mood" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition">
+                            <option value="Energetic">Energetic</option>
+                            <option value="Melancholic">Melancholic</option>
+                            <option value="Chill">Chill</option>
+                            <option value="Dark">Dark</option>
+                            <option value="Uplifting">Uplifting</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Optional Lyrics</label>
+                    <textarea x-model="form.lyrics" rows="3" placeholder="Verse 1..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+                </div>
+
+                <button type="submit" :disabled="isGenerating" class="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-semibold rounded-lg shadow-lg shadow-indigo-600/20 transition disabled:opacity-50 flex items-center justify-center space-x-2">
+                    <svg x-show="isGenerating" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span x-text="isGenerating ? 'Generating Track...' : 'Generate Song'"></span>
+                </button>
+            </form>
+
+            <div class="border-t border-slate-800/80 pt-6 mt-auto">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Filters</h3>
+                <div class="flex space-x-2">
+                    <button @click="filterLiked = false; loadSongs()" :class="!filterLiked ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400'" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition">All Songs</button>
+                    <button @click="filterLiked = true; loadSongs()" :class="filterLiked ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400'" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition">Liked</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center/Right Content: Song Library & Player Area -->
+        <main class="flex-1 flex flex-col bg-slate-950 overflow-hidden">
+            
+            <!-- Songs Scrollable List -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                <template x-if="songs.length === 0">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-500 space-y-2">
+                        <svg class="w-12 h-12 stroke-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                        <p class="text-sm">No songs generated yet. Create your first track!</p>
+                    </div>
+                </template>
+
+                <div class="grid grid-cols-1 gap-4 max-w-4xl mx-auto">
+                    <template x-for="song in songs" :key="song.id">
+                        <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 transition flex items-center justify-between space-x-4">
+                            <div class="flex items-center space-x-4 min-w-0">
+                                <div class="h-14 w-14 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center overflow-hidden relative">
+                                    <template x-if="song.image_path">
+                                        <img :src="song.image_path" class="h-full w-full object-cover">
+                                    </template>
+                                    <template x-if="!song.image_path">
+                                        <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                                    </template>
+                                </div>
+                                <div class="min-w-0">
+                                    <h4 class="text-sm font-semibold text-slate-200 truncate" x-text="song.title || 'Untitled Track'"></h4>
+                                    <p class="text-xs text-slate-400 truncate mt-0.5" x-text="song.prompt"></p>
+                                    <div class="flex items-center space-x-2 mt-2">
+                                        <span class="bg-slate-800 text-indigo-400 text-[10px] px-2 py-0.5 rounded-full font-medium" x-text="song.genre"></span>
+                                        <span class="bg-slate-800 text-purple-400 text-[10px] px-2 py-0.5 rounded-full font-medium" x-text="song.mood"></span>
+                                        <span x-show="song.status === 'generating'" class="text-amber-400 text-[10px] animate-pulse">Generating...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-2 flex-shrink-0">
+                                <button @click="toggleLike(song)" class="p-2 text-slate-400 hover:text-rose-500 transition">
+                                    <svg class="w-5 h-5" :class="song.is_liked ? 'fill-rose-500 text-rose-500' : 'fill-none'" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                                </button>
+                                <button @click="playSong(song)" :disabled="song.status === 'generating'" class="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-lg shadow-indigo-600/20 disabled:opacity-40">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </button>
+                                <button @click="deleteSong(song.id)" class="p-2 text-slate-500 hover:text-rose-400 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Bottom Audio Player & Waveform Toolbar -->
+            <footer class="border-t border-slate-800 bg-slate-900 p-4" x-show="currentSong">
+                <div class="max-w-4xl mx-auto flex flex-col space-y-3">
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-semibold text-slate-200" x-text="currentSong?.title"></span>
+                            <span class="text-slate-500">-</span>
+                            <span class="text-slate-400" x-text="currentSong?.genre"></span>
+                        </div>
+                        <div class="text-slate-400">
+                            <span x-text="formatTime(currentTime)"></span> / <span x-text="formatTime(duration)"></span>
+                        </div>
+                    </div>
+
+                    <!-- Waveform Canvas Container -->
+                    <div id="waveform" class="w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800/60 h-16"></div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <div class="flex items-center space-x-3">
+                            <button @click="togglePlay()" class="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full transition">
+                                <svg x-show="!isPlaying" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                <svg x-show="isPlaying" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                            </button>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-slate-400">Volume</span>
+                            <input type="range" min="0" max="1" step="0.05" x-model="volume" @input="updateVolume()" class="w-24 accent-indigo-500">
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        function melodyApp() {
+            return {
+                songs: [],
+                quota: { limit: 10, remaining: 10 },
+                form: {
+                    prompt: '',
+                    genre: 'Pop',
+                    mood: 'Energetic',
+                    lyrics: ''
+                },
+                isGenerating: false,
+                filterLiked: false,
+                currentSong: null,
+                isPlaying: false,
+                currentTime: 0,
+                duration: 0,
+                volume: 0.8,
+                wavesurfer: null,
+
+                init() {
+                    this.loadQuota();
+                    this.loadSongs();
+                },
+
+                async loadQuota() {
+                    try {
+                        const res = await fetch('/api/quota');
+                        if (res.ok) {
+                            this.quota = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Failed to load quota', e);
+                    }
+                },
+
+                async loadSongs() {
+                    try {
+                        let url = '/api/songs';
+                        if (this.filterLiked) {
+                            url += '?liked_only=true';
+                        }
+                        const res = await fetch(url);
+                        if (res.ok) {
+                            this.songs = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Failed to load songs', e);
+                    }
+                },
+
+                async generateSong() {
+                    this.isGenerating = true;
+                    try {
+                        const res = await fetch('/api/generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.form)
+                        });
+                        if (res.ok) {
+                            this.form.prompt = '';
+                            this.form.lyrics = '';
+                            await this.loadSongs();
+                            await this.loadQuota();
+                            this.pollGeneratingSongs();
+                        } else {
+                            const err = await res.json();
+                            alert(err.detail || 'Generation failed');
+                        }
+                    } catch (e) {
+                        console.error('Generation error', e);
+                    } finally {
+                        this.isGenerating = false;
+                    }
+                },
+
+                pollGeneratingSongs() {
+                    const hasGenerating = this.songs.some(s => s.status === 'generating');
+                    if (hasGenerating) {
+                        setTimeout(async () => {
+                            await this.loadSongs();
+                            this.pollGeneratingSongs();
+                        }, 3000);
+                    }
+                },
+
+                async toggleLike(song) {
+                    try {
+                        const res = await fetch(`/api/songs/${song.id}/like`, { method: 'POST' });
+                        if (res.ok) {
+                            song.is_liked = !song.is_liked;
+                        }
+                    } catch (e) {
+                        console.error('Like toggle error', e);
+                    }
+                },
+
+                async deleteSong(id) {
+                    if (!confirm('Are you sure you want to delete this track?')) return;
+                    try {
+                        const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            if (this.currentSong && this.currentSong.id === id) {
+                                this.stopPlayer();
+                            }
+                            this.songs = this.songs.filter(s => s.id !== id);
+                        }
+                    } catch (e) {
+                        console.error('Delete error', e);
+                    }
+                },
+
+                playSong(song) {
+                    this.currentSong = song;
+                    this.isPlaying = true;
+
+                    if (!this.wavesurfer) {
+                        this.$nextTick(() => {
+                            this.initWaveSurfer(song.audio_path || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+                        });
+                    } else {
+                        this.wavesurfer.load(song.audio_path || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+                    }
+                },
+
+                initWaveSurfer(audioUrl) {
+                    if (this.wavesurfer) {
+                        this.wavesurfer.destroy();
+                    }
+
+                    this.wavesurfer = WaveSurfer.create({
+                        container: '#waveform',
+                        waveColor: '#4f46e5',
+                        progressColor: '#c084fc',
+                        cursorColor: '#ffffff',
+                        barWidth: 3,
+                        barRadius: 3,
+                        cursorWidth: 1,
+                        height: 64,
+                        barGap: 2,
+                        url: audioUrl
+                    });
+
+                    this.wavesurfer.on('ready', () => {
+                        this.duration = this.wavesurfer.getDuration();
+                        this.wavesurfer.play();
+                        this.wavesurfer.setVolume(this.volume);
+                    });
+
+                    this.wavesurfer.on('audioprocess', () => {
+                        this.currentTime = this.wavesurfer.getCurrentTime();
+                    });
+
+                    this.wavesurfer.on('finish', () => {
+                        this.isPlaying = false;
+                    });
+                },
+
+                togglePlay() {
+                    if (!this.wavesurfer) return;
+                    this.wavesurfer.playPause();
+                    this.isPlaying = this.wavesurfer.isPlaying();
+                },
+
+                stopPlayer() {
+                    if (this.wavesurfer) {
+                        this.wavesurfer.stop();
+                    }
+                    this.isPlaying = false;
+                    this.currentSong = null;
+                },
+
+                updateVolume() {
+                    if (this.wavesurfer) {
+                        this.wavesurfer.setVolume(this.volume);
+                    }
+                },
+
+                formatTime(seconds) {
+                    if (isNaN(seconds)) return '0:00';
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
